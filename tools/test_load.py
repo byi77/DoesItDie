@@ -1622,6 +1622,9 @@ check("  slots made again with Corruption's slot set up",
 check("  the plate too", any("SETUP plate" in l and "Corruption ok" in l for l in native_log()), True)
 step("poll feeds the slot", lambda: H.update(0.3))
 check("  size logged", any("SIZE target Corruption" in l for l in native_log()), True)
+step("/did native chain and back", lambda: (G.SlashCmdList.DOESITDIE("native chain"), H.update(0.3),
+                                            G.SlashCmdList.DOESITDIE("native chain"), H.update(0.3)))
+check("  both layouts built", sum("SETUP target" in l and "Corruption ok" in l for l in native_log()) >= 3, True)
 step("/did native status", lambda: G.SlashCmdList.DOESITDIE("native status"))
 check("  status names the chain", "chain Corruption" in chat_text(), True)
 step("target changes with the probe on", lambda: (H.fire("PLAYER_TARGET_CHANGED"), H.update(0.3)))

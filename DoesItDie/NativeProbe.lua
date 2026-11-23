@@ -196,6 +196,19 @@ local function makeHost(kind, bar, parent)
     local made = {}
     for i, spec in ipairs(chain) do
         local slot = { spec = spec, name = spec.name, stacked = spec.stacked, color = COLORS[(i - 1) % #COLORS + 1] }
+        if not probe.chainMode then
+            -- Where this strip starts: our total for DoTs without a slot plus DoesItDie's own estimate of the DoTs
+            -- before it in the chain (the poll sets it). Round 2's first try pinned each strip to the end of the
+            -- strip before it instead, and the strips after the first never showed (in-game 2026-11-23: Rip).
+            local offset = newFrame("StatusBar", parent)
+            offset:SetStatusBarTexture(WHITE)
+            offset:SetStatusBarColor(0, 0, 0, 0)
+            offset:SetMinMaxValues(0, 1)
+            offset:SetValue(0)
+            offset:SetAllPoints(bar)
+            slot.offset = offset
+            start = offset:GetStatusBarTexture()
+        end
         -- Invisible bar on the health scale from this slot's start: its fill end is where the slot ends.
         local scale = newFrame("StatusBar", parent)
         scale:SetStatusBarTexture(WHITE)
@@ -232,7 +245,10 @@ local function dropHost(host)
     pcall(host.container.SetEnabled, host.container, false)
     pcall(host.container.Hide, host.container)
     pcall(host.base.Hide, host.base)
-    for _, slot in ipairs(host.slots) do pcall(slot.scale.Hide, slot.scale) end
+    for _, slot in ipairs(host.slots) do
+        pcall(slot.scale.Hide, slot.scale)
+        if slot.offset then pcall(slot.offset.Hide, slot.offset) end
+    end
 end
 
 local function plateTokenOf(plate)
@@ -323,8 +339,14 @@ local function feed(host)
     local width = host.bar:GetWidth()
     pcall(host.base.SetMinMaxValues, host.base, 0, maxHealth)
     pcall(host.base.SetValue, host.base, base)
+    local before = base -- DoesItDie's estimate of everything drawn before this slot
     for _, slot in ipairs(host.slots) do
         local entry = byName[slot.name]
+        if slot.offset then
+            pcall(slot.offset.SetMinMaxValues, slot.offset, 0, maxHealth)
+            pcall(slot.offset.SetValue, slot.offset, before)
+        end
+        before = before + (entry and entry.damage or 0)
         local size = 0
         if entry then
             -- The DoT's whole damage when it was applied (or refreshed, or a stack added).
@@ -431,7 +453,7 @@ function probe.enable(quiet)
     probe.on = true
     ns.db.nativeProbe = true
     setupChain()
-    log("PROBE on (round 2: chained slots)")
+    log("PROBE on (round 2: " .. (probe.chainMode and "each strip pinned to the one before" or "strips placed from our numbers") .. ")")
     rebuild()
     if not quiet then
         say("Native probe ON (stays on through /reload): one strip per DoT, end to end, in the lower half of the bar; "
@@ -449,19 +471,24 @@ function probe.disable()
     say("Native probe OFF. Its log is DoesItDieDB.nativeLog, saved on /reload.")
 end
 
--- /did native [off | status]
+-- /did native [off | chain | status]
 function probe.command(arg)
     arg = strlower(strtrim(arg or ""))
     if arg == "" then
         if probe.on then probe.disable() else probe.enable() end
     elseif arg == "off" then
         if probe.on then probe.disable() end
+    elseif arg == "chain" then
+        probe.chainMode = not probe.chainMode
+        say(probe.chainMode and "Native probe: each strip now starts at the end of the strip before it (the layout where Rip didn't show)."
+            or "Native probe: each strip now starts where DoesItDie's own numbers put it.")
+        if probe.on then rebuild() else probe.enable(true) end
     elseif arg == "status" then
         local names = {}
         for _, spec in ipairs(chain) do names[#names + 1] = spec.name end
         say(string.format("Native probe %s: chain %s; %d log lines.", probe.on and "ON" or "OFF",
             #names > 0 and table.concat(names, ", ") or "empty (cast a DoT)", ns.db.nativeLog and #ns.db.nativeLog or 0))
     else
-        say("/did native [off | status]")
+        say("/did native [off | chain | status]")
     end
 end
