@@ -1052,6 +1052,8 @@ ns.display = {
     -- The target changed: its damage is traced again from the start.
     forgetTracedDamage = function() lastTracedDamage = nil end,
     hasHealthBar = function() return healthBar ~= nil end,
+    -- NativeProbe.lua: the bar the marker is attached to (nil if none).
+    healthBar = function() return healthBar end,
     -- For Execute.lua: what the kill icon is centered on, the frame whose visibility the display follows, and
     -- whether that's the options window's mock target frame.
     killIconAnchor = function() return skullAnchor, visibilityFrame, previewHost ~= nil end,

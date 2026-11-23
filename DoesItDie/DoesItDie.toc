@@ -24,4 +24,5 @@ Nameplates.lua
 Focus.lua
 Execute.lua
 Party.lua
+NativeProbe.lua
 API.lua

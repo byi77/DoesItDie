@@ -1963,7 +1963,10 @@ SLASH_DOESITDIE1 = "/did"
 SLASH_DOESITDIE2 = "/doesitdie"
 SlashCmdList.DOESITDIE = function(msg)
     local cmd = strlower(strtrim(msg or ""))
-    if cmd == "" or cmd == "options" or cmd == "config" then
+    local native = cmd:match("^native%s*(.*)$")
+    if native and ns.nativeProbe then
+        ns.nativeProbe.command(native)
+    elseif cmd == "" or cmd == "options" or cmd == "config" then
         ns.openOptions()
     elseif cmd == "line" then
         db.showMarkers = not db.showMarkers
@@ -1997,6 +2000,7 @@ SlashCmdList.DOESITDIE = function(msg)
             "/did debug - toggle echoing the trace log (casts, ticks, estimates) to chat",
             "/did ticks - show learned tick sizes",
             "/did reset - forget learned tick sizes",
+            "/did native - test probe for Blizzard's aura frames (issue #49), logged",
         }) do print(T(line)) end
     end
 end

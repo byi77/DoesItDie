@@ -1578,6 +1578,65 @@ end""")(G.frames), True)
 G.targetGuid = None
 
 
+# /did native: the AuraContainer probe (NativeProbe.lua, issue #49) with a fake container whose slots call their
+# initializeFrame at once, as the client does. The first slot without a spell filter is refused, to run the fallback.
+lua.execute("""
+C_XMLUtil = { GetTemplateInfo = function() return {} end }
+Enum.StatusBarTimerDirection = { RemainingTime = 1 }
+Enum.DurationTextBindingProperty = { RemainingPercent = 2 }
+C_StringUtil = { CreateNumericRuleFormatter = function() return FakeMock("formatter") end }
+local realCreateFrame = CreateFrame
+function CreateFrame(kind, name, parent, template)
+    local f = realCreateFrame(kind, name, parent, template)
+    if kind == "AuraContainer" then
+        f.slotCalls = 0
+        f.AddAuraSlot = function(self, slotName, filter, options)
+            self.slotCalls = self.slotCalls + 1
+            if not options.candidateFilters then error("candidateFilters required") end
+            local button = FakeMock("Button", self)
+            fakeAuraButtons = fakeAuraButtons or {}
+            table.insert(fakeAuraButtons, button)
+            options.initializeFrame(button)
+        end
+    end
+    return f
+end
+realGetNamePlate = C_NamePlate.GetNamePlateForUnit
+C_NamePlate.GetNamePlateForUnit = function(unit) return realGetNamePlate(unit == "target" and "nameplate1" or unit) end
+""")
+
+
+def native_log():
+    log = G.DoesItDieDB.nativeLog
+    return [str(line) for line in log.values()] if log else []
+
+
+G.targetGuid = "Creature-0-1-2-3-3099-000001"
+step("/did native turns the probe on", lambda: (G.SlashCmdList.DOESITDIE("native"), H.update(0.3)))
+check("  probe on and saved", (ns.nativeProbe.on, G.DoesItDieDB.nativeProbe), (True, True))
+check("  setup logged", any("CustomAuraContainerTemplate yes" in l for l in native_log()), True)
+check("  a slot went in with the spell ID fallback, and its frame was set up",
+      any("AddAuraSlot (" in l and "spell IDs): ok | initializeFrame ran" in l for l in native_log()), True)
+check("  bindings all accepted", any("SetDurationBar ok" in l and "kill icon ok" in l for l in native_log()), True)
+step("cast Corruption: the strip takes its size", lambda: (H.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-n", 172),
+                                                         H.update(0.3)))
+check("  size logged", any("SIZE Corruption first seen" in l for l in native_log()), True)
+check("  leak sample logged", any(l.split(" ", 1)[1].startswith("LEAK ") and "heartbeat=" in l for l in native_log()), True)
+step("UNIT_AURA with a payload", lambda: H.fire("UNIT_AURA", "target", lua.eval(
+    "{ isFullUpdate = false, addedAuras = { { auraInstanceID = 7, spellId = 172 } }, removedAuraInstanceIDs = {} }")))
+step("UNIT_AURA without one", lambda: (H.update(2.5), H.fire("UNIT_AURA", "target")))
+check("  payload logged", any("AURA target" in l and "spellId=172" in l for l in native_log()), True)
+step("/did native 500, base, status", lambda: (G.SlashCmdList.DOESITDIE("native 500"), G.SlashCmdList.DOESITDIE("native base"),
+                                               G.SlashCmdList.DOESITDIE("native status"), H.update(0.3)))
+check("  size set", ns.nativeProbe.size, 500)
+step("target changes with the probe on", lambda: (H.fire("PLAYER_TARGET_CHANGED"), H.update(0.3)))
+step("/did native turns it off", lambda: G.SlashCmdList.DOESITDIE("native"))
+check("  probe off and saved", (ns.nativeProbe.on, G.DoesItDieDB.nativeProbe), (False, False))
+check("  chat says where the log is", "nativeLog" in chat_text(), True)
+lua.execute("C_NamePlate.GetNamePlateForUnit = realGetNamePlate")
+G.targetGuid = None
+
+
 def lua_quote(text):
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n") + '"'
 
