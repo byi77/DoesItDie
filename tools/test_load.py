@@ -1614,21 +1614,16 @@ def native_log():
 G.targetGuid = "Creature-0-1-2-3-3099-000001"
 step("/did native turns the probe on", lambda: (G.SlashCmdList.DOESITDIE("native"), H.update(0.3)))
 check("  probe on and saved", (ns.nativeProbe.on, G.DoesItDieDB.nativeProbe), (True, True))
-check("  setup logged", any("CustomAuraContainerTemplate yes" in l for l in native_log()), True)
-check("  a slot went in with the spell ID fallback, and its frame was set up",
-      any("AddAuraSlot (" in l and "spell IDs): ok | initializeFrame ran" in l for l in native_log()), True)
-check("  bindings all accepted", any("SetDurationBar ok" in l and "kill icon ok" in l for l in native_log()), True)
-step("cast Corruption: the strip takes its size", lambda: (H.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-n", 172),
-                                                         H.update(0.3)))
-check("  size logged", any("SIZE Corruption first seen" in l for l in native_log()), True)
-check("  leak sample logged", any(l.split(" ", 1)[1].startswith("LEAK ") and "heartbeat=" in l for l in native_log()), True)
-step("UNIT_AURA with a payload", lambda: H.fire("UNIT_AURA", "target", lua.eval(
-    "{ isFullUpdate = false, addedAuras = { { auraInstanceID = 7, spellId = 172 } }, removedAuraInstanceIDs = {} }")))
-step("UNIT_AURA without one", lambda: (H.update(2.5), H.fire("UNIT_AURA", "target")))
-check("  payload logged", any("AURA target" in l and "spellId=172" in l for l in native_log()), True)
-step("/did native 500, base, status", lambda: (G.SlashCmdList.DOESITDIE("native 500"), G.SlashCmdList.DOESITDIE("native base"),
-                                               G.SlashCmdList.DOESITDIE("native status"), H.update(0.3)))
-check("  size set", ns.nativeProbe.size, 500)
+step("cast Corruption: it joins the chain", lambda: (H.fire("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-n", 172),
+                                                    H.update(0.3), H.update(0.3)))
+check("  chain logged", any("CHAIN Corruption 172 added" in l for l in native_log()), True)
+check("  slots made again with Corruption's slot set up",
+      any("SETUP target" in l and "Corruption ok [anchor ok" in l and "kill icon ok" in l for l in native_log()), True)
+check("  the plate too", any("SETUP plate" in l and "Corruption ok" in l for l in native_log()), True)
+step("poll feeds the slot", lambda: H.update(0.3))
+check("  size logged", any("SIZE target Corruption" in l for l in native_log()), True)
+step("/did native status", lambda: G.SlashCmdList.DOESITDIE("native status"))
+check("  status names the chain", "chain Corruption" in chat_text(), True)
 step("target changes with the probe on", lambda: (H.fire("PLAYER_TARGET_CHANGED"), H.update(0.3)))
 step("/did native turns it off", lambda: G.SlashCmdList.DOESITDIE("native"))
 check("  probe off and saved", (ns.nativeProbe.on, G.DoesItDieDB.nativeProbe), (False, False))
