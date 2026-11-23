@@ -14,7 +14,8 @@
 -- plus the DoT's whole damage (DoesItDie's own estimate when it was applied, so it drains with the real time left).
 -- Lacerate's slot also scales with its stacks (stack bar 0-5). Each slot has its own skull at its end, shown only
 -- past the green. The first slot starts at the end of DoesItDie's total for any DoTs that have no slot.
--- What to watch: does the chain line up with DoesItDie's marker, and does a strip whose DoT isn't up leave a gap?
+-- In-game 2026-11-23: pinning a strip to the end of another slot's strip doesn't work (it never shows), so each
+-- strip starts where DoesItDie's own numbers put it; that layout works.
 -- SETUP and SIZE lines go to DoesItDieDB.nativeLog (saved on /reload).
 local _, ns = ...
 
